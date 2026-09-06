@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseCase } from "../src/contract";
 import { __resetWalletForTests, walletStore } from "../src/wallet";
 import { loadJournal, reserve, updateJournal } from "../src/pending";
+import appSource from "../src/App.tsx?raw";
 
 const addressA = `0x${"1".repeat(40)}` as const;
 const addressB = `0x${"2".repeat(40)}` as const;
@@ -26,6 +27,15 @@ describe("contract boundary", () => {
     expect(BigInt(parsed!.id)).toBe(9007199254740993n);
   });
   it("rejects invented protocol fields", () => expect(() => parseCase(JSON.stringify({ ...record, reasoning: "invented" }))).toThrow("Unexpected"));
+});
+
+describe("presentation integration guards", () => {
+  it("does not silently discard incomplete terms before contract validation", () => {
+    expect(appSource).not.toContain("rawTerms.filter");
+  });
+  it("accepts the third unresolved attempt's EXHAUSTED readback", () => {
+    expect(appSource).toContain('["DONE", "UNRESOLVED", "EXHAUSTED"].includes(next.phase)');
+  });
 });
 
 describe("wallet state machine", () => {
