@@ -371,6 +371,13 @@ nav a:hover::after {
   color: var(--ink-900);
 }
 
+.wallet-error {
+  max-width: 18rem;
+  color: #8d2621;
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
 .spinner-micro {
   display: inline-block;
   width: 0.9rem;

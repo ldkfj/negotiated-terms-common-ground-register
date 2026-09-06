@@ -51,8 +51,10 @@ export async function reserve(input: Omit<JournalRecord, "v" | "reservation" | "
     probeJournal();
     const rows = loadUnlocked();
     if (rows.length >= 32) throw new Error("JOURNAL_CAPACITY");
-    const caseToken = input.intent.split(":")[1] ?? input.intent;
-    if (rows.some((row) => !["VERIFIED", "FINALIZED_ERROR"].includes(row.status) && row.chain === input.chain && row.contract === input.contract && row.intent.includes(caseToken))) throw new Error("Pending operation conflict");
+    const caseId = input.intent.split(":")[1] ?? "";
+    if (rows.some((row) => !["VERIFIED", "FINALIZED_ERROR"].includes(row.status)
+      && row.chain === input.chain && row.contract === input.contract
+      && (caseId ? row.intent.split(":")[1] === caseId : row.intent === input.intent))) throw new Error("Pending operation conflict");
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     const reservation = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
     const row: JournalRecord = { ...input, v: 1, reservation, tx_hash: "", status: "SIGNING", created_ms: String(Date.now()) };

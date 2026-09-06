@@ -56,6 +56,9 @@ describe("wallet state machine", () => {
     expect(walletStore.getSnapshot()).toMatchObject({ phase: "CONNECTED", account: addressA, selected: option });
     expect(provider.request).toHaveBeenNthCalledWith(1, { method: "eth_requestAccounts" });
   });
+  it("uses an explicit configured-chain recovery request", () => {
+    expect(appSource).toContain("walletStore.recoverChain()");
+  });
 });
 
 describe("attempt journal", () => {
@@ -68,6 +71,10 @@ describe("attempt journal", () => {
   it("blocks same-case pending writes before another reservation", async () => {
     await reserve(input);
     await expect(reserve({ ...input, method: "freeze_offer_a", intent: "freeze_offer_a:1:2" })).rejects.toThrow("conflict");
+  });
+  it("does not confuse case 1 with case 10", async () => {
+    await reserve(input);
+    await expect(reserve({ ...input, intent: "freeze_offer_a:10:2" })).resolves.toMatchObject({ status: "SIGNING" });
   });
   it("never permits a nonempty transaction hash to change", async () => {
     const row = await reserve(input);

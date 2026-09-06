@@ -13,7 +13,11 @@ interface State {
   error: string | null;
 }
 
-const TARGET_CHAIN = (import.meta.env.VITE_CHAIN_ID as string | undefined)?.toLowerCase() ?? "";
+const configuredChain = String(import.meta.env.VITE_CHAIN_ID ?? "").trim().toLowerCase();
+const TARGET_CHAIN = !configuredChain || configuredChain === "0"
+  ? ""
+  : configuredChain.startsWith("0x") ? configuredChain : `0x${BigInt(configuredChain).toString(16)}`;
+const RPC_URL = String(import.meta.env.VITE_GENLAYER_RPC_URL ?? "").trim();
 let state: State = { phase: "DISCONNECTED", options: [], selected: null, account: null, chainId: null, error: null };
 const subscribers = new Set<() => void>();
 const providerIds = new WeakMap<object, string>();
@@ -98,6 +102,38 @@ export const walletStore = {
     } catch (error) {
       const rejected = (error as { code?: number }).code === 4001;
       emit({ phase: "ERROR", selected: null, error: rejected ? "Connection request rejected." : String((error as Error).message ?? error) });
+    }
+  },
+  async recoverChain() {
+    const option = state.selected;
+    if (!option || !state.account || !TARGET_CHAIN) {
+      emit({ phase: "ERROR", error: "Target network is not configured." });
+      return;
+    }
+    try {
+      await option.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: TARGET_CHAIN }] });
+    } catch (error) {
+      const code = Number((error as { code?: number }).code);
+      if (code !== 4902 || !/^https:\/\//.test(RPC_URL)) {
+        emit({ phase: "WRONG_CHAIN", error: code === 4001 ? "Network switch rejected." : "Unable to switch to the configured network." });
+        return;
+      }
+      try {
+        await option.provider.request({
+          method: "wallet_addEthereumChain",
+          params: [{ chainId: TARGET_CHAIN, chainName: "GenLayer Studionet", nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 }, rpcUrls: [RPC_URL] }],
+        });
+        await option.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: TARGET_CHAIN }] });
+      } catch (addError) {
+        emit({ phase: "WRONG_CHAIN", error: Number((addError as { code?: number }).code) === 4001 ? "Network addition rejected." : "Unable to add the configured network." });
+        return;
+      }
+    }
+    try {
+      const chainId = String(await option.provider.request({ method: "eth_chainId" })).toLowerCase();
+      emit({ chainId, phase: chainId === TARGET_CHAIN ? "CONNECTED" : "WRONG_CHAIN", error: chainId === TARGET_CHAIN ? null : "Wallet remains on the wrong network." });
+    } catch {
+      emit({ phase: "WRONG_CHAIN", error: "Unable to verify the active network." });
     }
   },
   disconnect() { cleanupSession(); cleanupSession = () => {}; emit({ phase: "DISCONNECTED", selected: null, account: null, chainId: null, error: null }); },

@@ -77,6 +77,14 @@ function WalletIcon({ name }: { name: string }) {
       </svg>
     );
   }
+  if (name === "OKX Wallet") {
+    return (
+      <svg className="wallet-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect width="24" height="24" rx="5" fill="#050505" />
+        <path fill="#fff" d="M4 4h5v5H4zm6 0h4v5h-4zm5 0h5v5h-5zM4 10h5v4H4zm11 0h5v4h-5zM4 15h5v5H4zm6 0h4v5h-4zm5 0h5v5h-5zm-5-5h4v4h-4z" />
+      </svg>
+    );
+  }
   return (
     <svg className="wallet-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <rect x="2" y="5" width="20" height="14" rx="3" />
@@ -95,13 +103,30 @@ function WalletChooser({
   onChoose(option: WalletOption): void;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const initiatingControl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const siblings = backdrop.current?.parentElement
+      ? Array.from(backdrop.current.parentElement.children).filter((element) => element !== backdrop.current)
+      : [];
+    siblings.forEach((element) => {
+      element.setAttribute("inert", "");
+      element.setAttribute("aria-hidden", "true");
+    });
     dialog.current?.focus();
+    return () => {
+      siblings.forEach((element) => {
+        element.removeAttribute("inert");
+        element.removeAttribute("aria-hidden");
+      });
+      initiatingControl?.focus();
+    };
   }, []);
 
   return (
     <div
       className="backdrop"
+      ref={backdrop}
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -116,6 +141,14 @@ function WalletChooser({
         ref={dialog}
         onKeyDown={(event) => {
           if (event.key === "Escape") onClose();
+          if (event.key === "Tab") {
+            const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+            if (!controls.length) { event.preventDefault(); dialog.current?.focus(); return; }
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+          }
         }}
       >
         <button className="dialog-close" onClick={onClose} aria-label="Close wallet chooser">
@@ -403,6 +436,9 @@ export default function App() {
           ) : wallet.phase === "WRONG_CHAIN" ? (
             <div className="wallet-connected">
               <span className="network-warning-pill">Wrong network</span>
+              <button onClick={() => void walletStore.recoverChain()} className="wallet-button">
+                Switch network
+              </button>
               <button onClick={() => walletStore.disconnect()} className="wallet-disconnect-btn">
                 Disconnect
               </button>
@@ -412,6 +448,7 @@ export default function App() {
               Connect wallet
             </button>
           )}
+          {wallet.error && <span className="wallet-error" role="alert">{wallet.error}</span>}
         </div>
       </header>
 
@@ -698,11 +735,6 @@ export default function App() {
               <span className="mark large">∩</span>
               <h2>Load an exact case to begin</h2>
               <p>Records remain public and revision-bound. No offer can be authored or frozen by the other party.</p>
-              <div className="empty-state-actions">
-                <button className="primary" onClick={() => void load("1")}>
-                  Load Case #1
-                </button>
-              </div>
             </div>
           )}
         </section>
