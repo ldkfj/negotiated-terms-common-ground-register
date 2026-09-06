@@ -1,0 +1,16 @@
+# Local governance and research handoff evidence (never publish)
+AGENTS.md
+CLAUDE.md
+RESEARCH-HANDOFF.md
+STAGE-1.md
+STAGE-2.md
+docs/preflight/
+
+# Local/generated files
+.pytest_cache/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.env*
+!.env.example
