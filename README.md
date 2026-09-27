@@ -19,6 +19,7 @@ $env:PYTHONIOENCODING='utf-8'
 genvm-lint check contracts/main.py --json
 genvm-lint schema contracts/main.py --output contract-schema.json
 python -m pytest tests/test_contract.py -q -p no:cacheprovider
+wsl.exe -e bash -lc "cd /mnt/e/Genlayer-Projects/negotiated-terms-common-ground-register && GENVM_VERSION=v0.6.0-rc5 /mnt/e/Genlayer-Tools/studio-next-toolchain/.wsl-venv/bin/python -m pytest tests/test_direct_runtime.py -q"
 npm --prefix frontend test
 npm --prefix frontend run build
 ```

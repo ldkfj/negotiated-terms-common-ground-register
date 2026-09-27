@@ -9,6 +9,7 @@ const isOffer = (value: unknown): value is Offer =>
 const short = (value: string) => (value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value);
 const phasePending = (phase: TxPhase) =>
   ["WAITING_FOR_WALLET", "SUBMITTED", "WAITING_FOR_FINALITY", "VERIFYING_EXECUTION", "VERIFYING_READBACK"].includes(phase);
+// The matching CSS media query honors prefers-reduced-motion for all progress animation.
 
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);

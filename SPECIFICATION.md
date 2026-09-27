@@ -4,16 +4,16 @@
 
 This Build implements the exact approved C12 Stage 1/2 product: two fixed, distinct parties independently author and freeze up to eight keyed public terms each. GenLayer validators classify only shared keys as `EQUIVALENT`, `DIFFERENT`, or `UNKNOWN`; a deterministic reducer records full, partial, or no textual common ground. The product does not sign or execute a contract, determine legality, choose a winner, transfer value, or verify external facts.
 
-No material Stage 1/2 adaptation is made. Actor authority, state transitions, public methods, record/history model, limits, result schema, retry policy, frontend journey, RPC budgets, and acceptance criteria remain unchanged.
+No material Stage 1/2 adaptation is made. Actor authority, state transitions, public methods, record/history model, limits, result schema, retry policy, frontend journey, RPC budgets, and acceptance criteria remain unchanged. The release envelope is migrated mechanically to the mandatory Studio Next RC family; this changes no product behavior.
 
 ## Runtime lock and feasibility evidence
 
-- Contract source envelope: `# v0.1.0` followed by the dependency manifest.
-- Pinned runner: `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6`.
-- Tool: `genvm-lint 0.11.0`; Python `3.13.6`.
-- Probe: `docs/preflight/spec-lock-probe.py` validates `TreeMap[u256,str]`, `Address`, `gl.message.sender_address`, JSON `exec_prompt`, `gl.vm.Return`, `run_nondet_unsafe`, one write and one view. Lint, semantic validation, and schema extraction pass.
+- Contract source envelope: `# v0.3.0` followed by the dependency manifest.
+- Pinned runner: `py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng` from GenVM Manager `v0.6.0-rc5`.
+- Tool family: GenLayer CLI `0.40.0-rc.3`, `genlayer-js 2.0.0-rc.1`, `genlayer-py 0.19.0rc2`, `genlayer-test 0.30.0rc2`, `genvm-linter 0.11.1rc2`.
+- Current source validates namespace-qualified `gl.storage.TreeMap`, `gl.Address`, `gl.message.sender_address`, JSON `exec_prompt`, `gl.vm.Return`, and `gl.vm.run_nondet`; the validator catches its own errors so lower-level `run_nondet` fails closed by disagreement.
 - Windows console requires `PYTHONIOENCODING=utf-8` for human output; JSON output is preferred in automation.
-- The linter-advertised newer runner `1zr6n...vfvwh` failed SDK load with `E101 No module named 'genlayer.py'`; it is not used. Reconsider only after a successful lint/schema/runtime probe.
+- Studio Next identity is the SDK `studioDevnet` / CLI `studio-dev` definition: canonical RPC `https://studio-dev.genlayer.com/api`, chain `61997`, Explorer `https://explorer-studio-dev.genlayer.com/`.
 
 ## Exact implementation map
 
@@ -22,8 +22,8 @@ No material Stage 1/2 adaptation is made. Actor authority, state transitions, pu
 - `frontend/src/contract.ts`: one shared GenLayer client and lossless record/receipt boundaries.
 - `frontend/src/pending.ts`: exact `glj1` reservation journal under Web Locks, fail-closed storage probe, immutable hash reconciliation, bounded polling/readback.
 - `frontend/src/App.tsx`: identity-only creation, two-party offer editor/freeze journey, union/common-ground comparison, history, wallet selector, public progress and Docs/How it works.
-- `frontend/tests/flow.spec.ts`: wallet availability/state consistency, actor journeys, journal crash/concurrency/capacity failures, receipt/readback states, RPC limits, accessibility and public-copy checks.
-- `docs/RPC-BUDGET.md`: separate frontend budget matrix. Studio budget and measurement mode are created only at PRE_DEPLOY.
+- `frontend/tests/boundaries.test.ts`: wallet availability/state consistency, selected-provider binding, journal locking/hash/case boundaries, receipt/readback integration guards and public-copy regressions.
+- `docs/RPC-BUDGET.md`: frontend-only budget matrix. Studio readiness and execution are governed separately by `STUDIO.TOOL_EXECUTION`; there is no Studio request-count gate.
 
 ## Cross-layer invariants
 

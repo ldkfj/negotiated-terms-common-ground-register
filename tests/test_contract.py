@@ -36,9 +36,10 @@ class Nondet:
 
 class VM:
     Return = Return
+    UserError = UserError
 
     @staticmethod
-    def run_nondet_unsafe(leader, validator):
+    def run_nondet(leader, validator):
         proposed = leader()
         assert validator(Return(proposed))
         return proposed
@@ -46,18 +47,15 @@ class VM:
 
 def load_contract():
     module = types.ModuleType("genlayer")
-    module.__all__ = ["gl", "u256", "Address", "TreeMap"]
     module.u256 = int
     module.Address = str
-    module.TreeMap = dict
-    module.gl = types.SimpleNamespace(
-        Contract=object,
-        UserError=UserError,
-        public=Public(),
-        message=Message(),
-        nondet=Nondet(),
-        vm=VM(),
-    )
+    module.storage = types.SimpleNamespace(TreeMap=dict)
+    module.contract = types.SimpleNamespace(Contract=object)
+    module.public = Public()
+    module.message = Message()
+    module.nondet = Nondet()
+    module.vm = VM()
+    module.gl = module
     sys.modules["genlayer"] = module
     path = Path(__file__).parents[1] / "contracts" / "main.py"
     spec = importlib.util.spec_from_file_location("contract_under_test", path)

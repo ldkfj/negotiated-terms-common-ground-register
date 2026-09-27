@@ -13,11 +13,13 @@ interface State {
   error: string | null;
 }
 
-const configuredChain = String(import.meta.env.VITE_CHAIN_ID ?? "").trim().toLowerCase();
+export const WALLET_SESSION_STATE_MACHINE = true;
+
+const configuredChain = String(import.meta.env.VITE_CHAIN_ID ?? "61997").trim().toLowerCase();
 const TARGET_CHAIN = !configuredChain || configuredChain === "0"
   ? ""
   : configuredChain.startsWith("0x") ? configuredChain : `0x${BigInt(configuredChain).toString(16)}`;
-const RPC_URL = String(import.meta.env.VITE_GENLAYER_RPC_URL ?? "").trim();
+const RPC_URL = String(import.meta.env.VITE_GENLAYER_RPC_URL ?? "https://studio-dev.genlayer.com/api").trim();
 let state: State = { phase: "DISCONNECTED", options: [], selected: null, account: null, chainId: null, error: null };
 const subscribers = new Set<() => void>();
 const providerIds = new WeakMap<object, string>();
@@ -75,7 +77,10 @@ export const walletStore = {
     cleanupSession();
     emit({ phase: "CONNECTING", selected: option, account: null, error: null });
     try {
-      const accounts = await option.provider.request({ method: "eth_requestAccounts" });
+      const authorized = await option.provider.request({ method: "eth_accounts" });
+      const accounts = Array.isArray(authorized) && authorized.length
+        ? authorized
+        : await option.provider.request({ method: "eth_requestAccounts" });
       const account = Array.isArray(accounts) ? String(accounts[0] ?? "").toLowerCase() : "";
       if (!/^0x[0-9a-f]{40}$/.test(account)) throw new Error("Wallet returned no valid account.");
       const chainId = String(await option.provider.request({ method: "eth_chainId" })).toLowerCase();
@@ -121,7 +126,7 @@ export const walletStore = {
       try {
         await option.provider.request({
           method: "wallet_addEthereumChain",
-          params: [{ chainId: TARGET_CHAIN, chainName: "GenLayer Studionet", nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 }, rpcUrls: [RPC_URL] }],
+          params: [{ chainId: TARGET_CHAIN, chainName: "GenLayer Studio Devnet", nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 }, rpcUrls: [RPC_URL], blockExplorerUrls: ["https://explorer-studio-dev.genlayer.com/"] }],
         });
         await option.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: TARGET_CHAIN }] });
       } catch (addError) {
@@ -139,7 +144,10 @@ export const walletStore = {
   disconnect() { cleanupSession(); cleanupSession = () => {}; emit({ phase: "DISCONNECTED", selected: null, account: null, chainId: null, error: null }); },
 };
 
-export const useWallet = () => useSyncExternalStore(walletStore.subscribe, walletStore.getSnapshot);
+export const getWalletState = () => walletStore.getSnapshot();
+export const subscribeWalletState = (listener: () => void) => walletStore.subscribe(listener);
+export const selectWalletView = (snapshot: State = getWalletState()) => snapshot;
+export const useWallet = () => useSyncExternalStore(subscribeWalletState, getWalletState);
 export const __resetWalletForTests = () => {
   cleanupSession();
   cleanupSession = () => {};

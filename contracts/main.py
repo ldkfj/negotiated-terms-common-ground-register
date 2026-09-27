@@ -1,7 +1,7 @@
-# v0.1.0
-# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
+# v0.3.0
+# { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
 
-from genlayer import *
+import genlayer as gl
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -22,7 +22,7 @@ def _reject_duplicates(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise gl.UserError("BAD_JSON")
+            raise gl.vm.UserError("BAD_JSON")
         result[key] = value
     return result
 
@@ -44,54 +44,54 @@ def _sha(value) -> str:
 def _address(value) -> str:
     text = str(value).lower()
     if not ADDRESS_RE.fullmatch(text):
-        raise gl.UserError("BAD_ADDRESS")
+        raise gl.vm.UserError("BAD_ADDRESS")
     return text
 
 
 def _decimal(value) -> str:
     if isinstance(value, bool):
-        raise gl.UserError("BAD_INTEGER")
+        raise gl.vm.UserError("BAD_INTEGER")
     number = int(value)
     if number < 0 or number > MAX_U256:
-        raise gl.UserError("BAD_INTEGER")
+        raise gl.vm.UserError("BAD_INTEGER")
     return str(number)
 
 
 def _parse_object(raw: str, cap: int):
     normalized = raw.replace("\r\n", "\n")
     if len(normalized.encode("utf-8")) > cap:
-        raise gl.UserError("CAPACITY")
+        raise gl.vm.UserError("CAPACITY")
     try:
         value = json.loads(normalized, object_pairs_hook=_reject_duplicates)
-    except gl.UserError:
+    except gl.vm.UserError:
         raise
     except Exception:
-        raise gl.UserError("BAD_JSON")
+        raise gl.vm.UserError("BAD_JSON")
     if not isinstance(value, dict):
-        raise gl.UserError("BAD_JSON")
+        raise gl.vm.UserError("BAD_JSON")
     return value
 
 
 def _validate_offer(raw: str):
     offer = _parse_object(raw, 6144)
     if set(offer) != {"terms"} or not isinstance(offer["terms"], list):
-        raise gl.UserError("BAD_OFFER")
+        raise gl.vm.UserError("BAD_OFFER")
     terms = offer["terms"]
     if not 1 <= len(terms) <= 8:
-        raise gl.UserError("BAD_OFFER")
+        raise gl.vm.UserError("BAD_OFFER")
     seen = set()
     clean = []
     for term in terms:
         if not isinstance(term, dict) or set(term) != {"key", "text"}:
-            raise gl.UserError("BAD_OFFER")
+            raise gl.vm.UserError("BAD_OFFER")
         key = term["key"]
         text = term["text"]
         if not isinstance(key, str) or not ID_RE.fullmatch(key) or key in seen:
-            raise gl.UserError("BAD_OFFER")
+            raise gl.vm.UserError("BAD_OFFER")
         if not isinstance(text, str) or not text or len(text.encode("utf-8")) > 512:
-            raise gl.UserError("BAD_OFFER")
+            raise gl.vm.UserError("BAD_OFFER")
         if any(ord(ch) < 32 and ch not in "\n\t" for ch in text):
-            raise gl.UserError("BAD_OFFER")
+            raise gl.vm.UserError("BAD_OFFER")
         seen.add(key)
         clean.append({"key": key, "text": text.replace("\r\n", "\n")})
     return {"terms": clean}
@@ -100,42 +100,42 @@ def _validate_offer(raw: str):
 def _validate_result(value, expected: int):
     if isinstance(value, str):
         if len(value.encode("utf-8")) > 4096:
-            raise gl.UserError("BAD_RESULT")
+            raise gl.vm.UserError("BAD_RESULT")
         try:
             value = json.loads(value, object_pairs_hook=_reject_duplicates)
         except Exception:
-            raise gl.UserError("BAD_RESULT")
+            raise gl.vm.UserError("BAD_RESULT")
     if not isinstance(value, dict) or set(value) != {"v", "labels"}:
-        raise gl.UserError("BAD_RESULT")
+        raise gl.vm.UserError("BAD_RESULT")
     if type(value["v"]) is not int or value["v"] != 1:
-        raise gl.UserError("BAD_RESULT")
+        raise gl.vm.UserError("BAD_RESULT")
     labels = value["labels"]
     if not isinstance(labels, list) or len(labels) != expected:
-        raise gl.UserError("BAD_RESULT")
+        raise gl.vm.UserError("BAD_RESULT")
     if any(not isinstance(label, str) or label not in LABELS for label in labels):
-        raise gl.UserError("BAD_RESULT")
+        raise gl.vm.UserError("BAD_RESULT")
     clean = {"v": 1, "labels": labels}
     if len(_canonical(clean).encode("utf-8")) > 4096:
-        raise gl.UserError("BAD_RESULT")
+        raise gl.vm.UserError("BAD_RESULT")
     return clean
 
 
-class NegotiatedTermsCommonGroundRegister(gl.Contract):
-    case_count: u256
-    cases: TreeMap[u256, str]
-    nonce_index: TreeMap[str, u256]
-    actor_index: TreeMap[str, str]
-    child_index: TreeMap[u256, str]
-    version_index: TreeMap[u256, u256]
-    history: TreeMap[str, str]
+class NegotiatedTermsCommonGroundRegister(gl.contract.Contract):
+    case_count: gl.u256
+    cases: gl.storage.TreeMap[gl.u256, str]
+    nonce_index: gl.storage.TreeMap[str, gl.u256]
+    actor_index: gl.storage.TreeMap[str, str]
+    child_index: gl.storage.TreeMap[gl.u256, str]
+    version_index: gl.storage.TreeMap[gl.u256, gl.u256]
+    history: gl.storage.TreeMap[str, str]
 
     def __init__(self) -> None:
         self.case_count = 0
 
-    def _load(self, case_id: u256):
+    def _load(self, case_id: gl.u256):
         raw = self.cases.get(case_id, "")
         if not raw:
-            raise gl.UserError("NOT_FOUND")
+            raise gl.vm.UserError("NOT_FOUND")
         return json.loads(raw)
 
     def _sender(self) -> str:
@@ -144,13 +144,13 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
     def _ids(self, raw: str):
         return [] if not raw else json.loads(raw)
 
-    def _guard_revision(self, record, expected_revision: u256) -> None:
+    def _guard_revision(self, record, expected_revision: gl.u256) -> None:
         if record["revision"] != _decimal(expected_revision):
-            raise gl.UserError("STALE_REVISION")
+            raise gl.vm.UserError("STALE_REVISION")
 
     def _reserve_completion(self, record, required: int) -> None:
         if int(record["revision"]) + required > 32:
-            raise gl.UserError("CAPACITY")
+            raise gl.vm.UserError("CAPACITY")
 
     def _commit(self, record, method: str, caller: str, args) -> None:
         revision = int(record["revision"]) + 1
@@ -162,20 +162,20 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
         }
         encoded = _canonical(record)
         if len(encoded.encode("utf-8")) > 24576:
-            raise gl.UserError("CAPACITY")
+            raise gl.vm.UserError("CAPACITY")
         case_id = int(record["id"])
         self.cases[case_id] = encoded
         self.version_index[case_id] = revision
         self.history[record["id"] + ":" + str(revision)] = encoded
 
     @gl.public.write
-    def create_negotiation(self, nonce: str, party_b: Address, parent: u256) -> u256:
+    def create_negotiation(self, nonce: str, party_b: gl.Address, parent: gl.u256) -> gl.u256:
         caller = self._sender()
         secondary = _address(party_b)
         if not NONCE_RE.fullmatch(nonce):
-            raise gl.UserError("BAD_NONCE")
+            raise gl.vm.UserError("BAD_NONCE")
         if caller == ZERO_ADDRESS or secondary == ZERO_ADDRESS or caller == secondary:
-            raise gl.UserError("BAD_PARTIES")
+            raise gl.vm.UserError("BAD_PARTIES")
         args = [nonce, secondary, _decimal(parent)]
         create_hash = _sha(args)
         nonce_key = caller + ":" + nonce
@@ -184,9 +184,9 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
             record = self._load(existing)
             if record["create_hash"] == create_hash:
                 return existing
-            raise gl.UserError("NONCE_CONFLICT")
+            raise gl.vm.UserError("NONCE_CONFLICT")
         if int(self.case_count) >= 32:
-            raise gl.UserError("CAPACITY")
+            raise gl.vm.UserError("CAPACITY")
         parent_id = int(parent)
         if parent_id:
             parent_record = self._load(parent)
@@ -195,9 +195,9 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
                 or parent_record["primary"] != caller
                 or parent_record["secondary"] != secondary
             ):
-                raise gl.UserError("BAD_PARENT")
+                raise gl.vm.UserError("BAD_PARENT")
             if len(self._ids(self.child_index.get(parent, ""))) >= 32:
-                raise gl.UserError("CAPACITY")
+                raise gl.vm.UserError("CAPACITY")
         new_id = int(self.case_count) + 1
         record = {
             "v": 1,
@@ -225,11 +225,11 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
         }
         encoded = _canonical(record)
         if len(encoded.encode("utf-8")) > 24576:
-            raise gl.UserError("CAPACITY")
+            raise gl.vm.UserError("CAPACITY")
         for actor in (caller, secondary):
             ids = self._ids(self.actor_index.get(actor, ""))
             if len(ids) >= 32:
-                raise gl.UserError("CAPACITY")
+                raise gl.vm.UserError("CAPACITY")
         self.case_count = new_id
         self.cases[new_id] = encoded
         self.nonce_index[nonce_key] = new_id
@@ -245,7 +245,7 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
             self.child_index[parent] = _canonical(children)
         return new_id
 
-    def _put_offer(self, case_id: u256, offer_json: str, expected_revision: u256, side: str) -> None:
+    def _put_offer(self, case_id: gl.u256, offer_json: str, expected_revision: gl.u256, side: str) -> None:
         caller = self._sender()
         record = self._load(case_id)
         self._guard_revision(record, expected_revision)
@@ -253,7 +253,7 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
         flag = "frozen_a" if side == "a" else "frozen_b"
         target = "base" if side == "a" else "response"
         if caller != record[role] or record["phase"] != "OPEN" or record["domain"][flag]:
-            raise gl.UserError("FORBIDDEN")
+            raise gl.vm.UserError("FORBIDDEN")
         offer = _validate_offer(offer_json)
         required = 3 + (1 if not record["base"] else 0) + (1 if not record["response"] else 0)
         required += (0 if record["domain"]["frozen_a"] else 1) + (0 if record["domain"]["frozen_b"] else 1)
@@ -263,14 +263,14 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
         self._commit(record, method, caller, [_decimal(case_id), offer, _decimal(expected_revision)])
 
     @gl.public.write
-    def put_offer_a(self, id: u256, offer_json: str, expected_revision: u256) -> None:
+    def put_offer_a(self, id: gl.u256, offer_json: str, expected_revision: gl.u256) -> None:
         self._put_offer(id, offer_json, expected_revision, "a")
 
     @gl.public.write
-    def put_offer_b(self, id: u256, offer_json: str, expected_revision: u256) -> None:
+    def put_offer_b(self, id: gl.u256, offer_json: str, expected_revision: gl.u256) -> None:
         self._put_offer(id, offer_json, expected_revision, "b")
 
-    def _freeze(self, case_id: u256, expected_revision: u256, side: str) -> None:
+    def _freeze(self, case_id: gl.u256, expected_revision: gl.u256, side: str) -> None:
         caller = self._sender()
         record = self._load(case_id)
         self._guard_revision(record, expected_revision)
@@ -279,7 +279,7 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
         offer = "base" if side == "a" else "response"
         lock = "base_locked" if side == "a" else "response_locked"
         if caller != record[role] or record["phase"] != "OPEN" or record["domain"][flag] or not record[offer]:
-            raise gl.UserError("FORBIDDEN")
+            raise gl.vm.UserError("FORBIDDEN")
         required = 3 + (0 if record["base"] else 1) + (0 if record["response"] else 1)
         required += (0 if record["domain"]["frozen_a"] or side == "a" else 1)
         required += (0 if record["domain"]["frozen_b"] or side == "b" else 1)
@@ -292,29 +292,29 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
         self._commit(record, method, caller, [_decimal(case_id), _decimal(expected_revision)])
 
     @gl.public.write
-    def freeze_offer_a(self, id: u256, expected_revision: u256) -> None:
+    def freeze_offer_a(self, id: gl.u256, expected_revision: gl.u256) -> None:
         self._freeze(id, expected_revision, "a")
 
     @gl.public.write
-    def freeze_offer_b(self, id: u256, expected_revision: u256) -> None:
+    def freeze_offer_b(self, id: gl.u256, expected_revision: gl.u256) -> None:
         self._freeze(id, expected_revision, "b")
 
-    def _assess(self, case_id: u256, expected_revision: u256, retry: bool) -> None:
+    def _assess(self, case_id: gl.u256, expected_revision: gl.u256, retry: bool) -> None:
         caller = self._sender()
         record = self._load(case_id)
         self._guard_revision(record, expected_revision)
         if retry:
             if record["phase"] != "UNRESOLVED" or record["accepted_attempts"] >= 3:
-                raise gl.UserError("BAD_PHASE")
+                raise gl.vm.UserError("BAD_PHASE")
             now = int(datetime.now(timezone.utc).timestamp())
             if now < int(record["last_accepted_at"]) + 60:
-                raise gl.UserError("COOLDOWN")
+                raise gl.vm.UserError("COOLDOWN")
         elif record["phase"] != "FROZEN" or record["accepted_attempts"] != 0:
-            raise gl.UserError("BAD_PHASE")
+            raise gl.vm.UserError("BAD_PHASE")
         offer_a = record["base"]
         offer_b = record["response"]
         if not record["base_locked"] or not record["response_locked"]:
-            raise gl.UserError("BAD_PHASE")
+            raise gl.vm.UserError("BAD_PHASE")
         map_a = {term["key"]: term["text"] for term in offer_a["terms"]}
         map_b = {term["key"]: term["text"] for term in offer_b["terms"]}
         shared = sorted(set(map_a) & set(map_b))
@@ -355,7 +355,9 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
                 except Exception:
                     return False
 
-            result = gl.vm.run_nondet_unsafe(leader, validator)
+            # The validator catches its own parse/model errors, so the current
+            # lower-level API preserves the intended fail-closed disagreement.
+            result = gl.vm.run_nondet(leader, validator)
         result = _validate_result(result, len(shared))
         union = sorted(set(map_a) | set(map_b))
         agreed = sum(1 for label in result["labels"] if label == "EQUIVALENT")
@@ -379,52 +381,52 @@ class NegotiatedTermsCommonGroundRegister(gl.Contract):
         self._commit(record, method, caller, [_decimal(case_id), _decimal(expected_revision)])
 
     @gl.public.write
-    def evaluate_common_ground(self, id: u256, expected_revision: u256) -> None:
+    def evaluate_common_ground(self, id: gl.u256, expected_revision: gl.u256) -> None:
         self._assess(id, expected_revision, False)
 
     @gl.public.write
-    def retry_negotiation(self, id: u256, expected_revision: u256) -> None:
+    def retry_negotiation(self, id: gl.u256, expected_revision: gl.u256) -> None:
         self._assess(id, expected_revision, True)
 
     @gl.public.view
-    def get_case(self, case_id: u256) -> str:
+    def get_case(self, case_id: gl.u256) -> str:
         return self.cases.get(case_id, "null")
 
     @gl.public.view
-    def get_version(self, case_id: u256, revision: u256) -> str:
+    def get_version(self, case_id: gl.u256, revision: gl.u256) -> str:
         return self.history.get(_decimal(case_id) + ":" + _decimal(revision), "null")
 
     @gl.public.view
-    def get_id_by_nonce(self, creator: Address, nonce: str) -> u256:
+    def get_id_by_nonce(self, creator: gl.Address, nonce: str) -> gl.u256:
         if not NONCE_RE.fullmatch(nonce):
-            raise gl.UserError("BAD_NONCE")
+            raise gl.vm.UserError("BAD_NONCE")
         return self.nonce_index.get(_address(creator) + ":" + nonce, 0)
 
     @gl.public.view
-    def get_count(self) -> u256:
+    def get_count(self) -> gl.u256:
         return self.case_count
 
     def _page(self, ids, offset: int, limit: int) -> str:
         if offset < 0 or offset > 32 or limit < 1 or limit > 4:
-            raise gl.UserError("BAD_PAGE")
+            raise gl.vm.UserError("BAD_PAGE")
         selected = ids[offset : offset + limit]
         next_offset = offset + len(selected)
         return _canonical({"ids": selected, "next": str(next_offset) if next_offset < len(ids) else "0"})
 
     @gl.public.view
-    def list_cases(self, start_id: u256, limit: u256) -> str:
+    def list_cases(self, start_id: gl.u256, limit: gl.u256) -> str:
         start = int(start_id)
         count = int(self.case_count)
         if start < 1 or start > 33 or int(limit) < 1 or int(limit) > 4:
-            raise gl.UserError("BAD_PAGE")
+            raise gl.vm.UserError("BAD_PAGE")
         ids = [str(value) for value in range(start, min(count + 1, start + int(limit)))]
         next_id = start + len(ids)
         return _canonical({"ids": ids, "next": str(next_id) if next_id <= count else "0"})
 
     @gl.public.view
-    def list_actor(self, actor: Address, offset: u256, limit: u256) -> str:
+    def list_actor(self, actor: gl.Address, offset: gl.u256, limit: gl.u256) -> str:
         return self._page(self._ids(self.actor_index.get(_address(actor), "")), int(offset), int(limit))
 
     @gl.public.view
-    def list_children(self, parent_id: u256, offset: u256, limit: u256) -> str:
+    def list_children(self, parent_id: gl.u256, offset: gl.u256, limit: gl.u256) -> str:
         return self._page(self._ids(self.child_index.get(parent_id, "")), int(offset), int(limit))
